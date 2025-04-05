@@ -47,10 +47,16 @@ export default function UploadAudioPage() {
     formData.append('hidden_until', hiddenUntil);
 
     try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        setMessage('Authentication token not found. Please log in.');
+        return;
+      }
+
       const response = await fetch('https://echo-trails-backend.vercel.app/audio/upload/', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2N2VhMGJkOTEyODJjNTY2YTlhMWM3OGYiLCJleHAiOjE3NDM1MjI3NzIsImlhdCI6MTc0MzQzNjM3Mn0.ABI9CXAUYjIKNXikvqC_OKzdRakhyY_ZitC7Er-cD2M`, // Replace with actual JWT token
+          Authorization: `Bearer ${token}`,
         },
         body: formData,
       });

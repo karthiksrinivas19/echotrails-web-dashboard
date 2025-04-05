@@ -35,7 +35,13 @@ export default function LoginPage() {
             }
 
             const data = await response.json();
+            console.log(data); // This should now log the full object
+
             console.log('Login successful:', data); // Log successful response
+
+            console.log('Before storing token:', data);
+            localStorage.setItem('authToken', data.access_token);
+            console.log('Token stored:', localStorage.getItem('authToken'));
 
             // Redirect to the "hello" page
             router.push('/hello');

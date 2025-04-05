@@ -31,6 +31,7 @@ export default function RegisterPage() {
 
             if (response.status === 201) {
                 const data = await response.json();
+                localStorage.setItem('authToken', data.authToken); // Store authToken in localStorage
                 window.location.href = 'login';
                 setMessage(`User registered successfully! Welcome, ${data.username}.`);
                 setFormData({ username: '', email: '', password: '' });

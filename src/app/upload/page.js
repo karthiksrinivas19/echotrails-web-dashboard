@@ -68,6 +68,8 @@ export default function UploadAudioPage() {
           id: result.id,
           latitude,
           longitude,
+          range,
+          hiddenUntil
         }));
       } else {
         setMessage(`Upload failed: ${result.detail}`);

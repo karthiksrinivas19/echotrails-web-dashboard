@@ -64,6 +64,11 @@ export default function UploadAudioPage() {
       const result = await response.json();
       if (response.ok) {
         setMessage(`Upload successful! Audio ID: ${result.id}`);
+        localStorage.setItem('audioData', JSON.stringify({
+          id: result.id,
+          latitude,
+          longitude,
+        }));
       } else {
         setMessage(`Upload failed: ${result.detail}`);
       }

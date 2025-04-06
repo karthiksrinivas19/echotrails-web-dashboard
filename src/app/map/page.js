@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import UploadAudioPage from "../upload/page";
 import Navbar from '@/components/Navbar';
 import AudioPlayer from "@/components/Audioplayer";
+
 const MapContainer = dynamic(() => import("react-leaflet").then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import("react-leaflet").then(mod => mod.Marker), { ssr: false });
@@ -16,13 +17,13 @@ const defaultPosition = [12.9716, 77.5946];
 
 export default function AudioMap() {
   const [audioFiles, setAudioFiles] = useState([]);
+  const [userPosition, setUserPosition] = useState(null);
   const [markerIcon, setMarkerIcon] = useState({ default: null, nearby: null });
   const [showUpload, setShowUpload] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-
     const L = require("leaflet");
 
     const defaultIcon = L.icon({
@@ -42,52 +43,60 @@ export default function AudioMap() {
 
     setMarkerIcon({ default: defaultIcon, nearby: nearbyIcon });
 
-    fetchAudioAndNearbyFiles();
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const coords = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          };
+          setUserPosition(coords);
+          fetchAudioFiles(coords);
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+          fetchAudioFiles(null);
+        }
+      );
+    } else {
+      fetchAudioFiles(null);
+    }
   }, []);
 
-  async function fetchAudioAndNearbyFiles() {
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000; // meters
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  async function fetchAudioFiles(userCoords) {
     const bearerToken = localStorage.getItem("authToken");
-    if (!navigator.geolocation) return;
 
     try {
-      const userRes = await axios.get("https://echo-trails-backend.vercel.app/audio/user/files", {
+      const res = await axios.get("https://echo-trails-backend.vercel.app/audio/user/files", {
         headers: { Authorization: `Bearer ${bearerToken}` },
       });
-      const userFiles = userRes.data.audio_files || [];
 
-      navigator.geolocation.getCurrentPosition(async (position) => {
-        const { latitude, longitude } = position.coords;
+      const userFiles = res.data.audio_files || [];
 
-        try {
-          const nearbyRes = await axios.get(
-            `https://echo-trails-backend.vercel.app/audio/nearby/?latitude=${latitude}&longitude=${longitude}`,
-            {
-              headers: { Authorization: `Bearer ${bearerToken}` },
-            }
-          );
-
-          const nearbyFiles = nearbyRes.data.nearby_files || [];
-          const nearbyIds = new Set(nearbyFiles.map(file => file._id));
-
-          const allFilesMap = new Map();
-
-          for (const file of userFiles) {
-            allFilesMap.set(file._id, { ...file, isNearby: nearbyIds.has(file._id) });
-          }
-
-          for (const file of nearbyFiles) {
-            if (!allFilesMap.has(file._id)) {
-              allFilesMap.set(file._id, { ...file, isNearby: true });
-            }
-          }
-
-          setAudioFiles(Array.from(allFilesMap.values()));
-        } catch (err) {
-          console.error("❌ Error fetching nearby audio files:", err);
-        }
+      const enrichedFiles = userFiles.map((file) => {
+        const [lng, lat] = file.location.coordinates;
+        const distance = userCoords
+          ? calculateDistance(userCoords.latitude, userCoords.longitude, lat, lng)
+          : Infinity;
+        const isNearby = distance <= file.range;
+        return { ...file, isNearby };
       });
+
+      setAudioFiles(enrichedFiles);
     } catch (err) {
-      console.error("❌ Error fetching user audio files:", err);
+      console.error("❌ Error fetching audio files:", err);
     }
   }
 
@@ -221,7 +230,8 @@ export default function AudioMap() {
               />
               {markerIcon.default &&
                 validAudioFiles.map((file, idx) => {
-                  const isAccessible = file.isNearby && new Date(file.hidden_until) <= new Date();
+                  const isTimeUnlocked = new Date(file.hidden_until) <= new Date();
+                  const isAccessible = file.isNearby && isTimeUnlocked;
 
                   return (
                     <Marker
@@ -231,19 +241,23 @@ export default function AudioMap() {
                     >
                       <Popup>
                         <b>{file.file_name}</b><br />
-                        <span style={{ color: file.isNearby ? "green" : "blue" }}>
-                          {file.isNearby ? "✅ Nearby" : "📍 Not Nearby"}
+                        <b>{file.title}</b><br />
+                        <span style={{ color: isAccessible ? "green" : file.isNearby ? "orange" : "blue" }}>
+                          {isAccessible
+                            ? "✅ Accessible"
+                            : file.isNearby
+                              ? "⏳ Nearby but Locked"
+                              : "📍 Not Nearby"}
                         </span><br />
                         Range: {file.range}m<br />
                         Hidden Until: {new Date(file.hidden_until).toLocaleString()}<br />
                         Created At: {new Date(file.created_at).toLocaleString()}<br /><br />
 
                         {isAccessible ? (
-  <AudioPlayer audioId={file._id} />
-) : (
-  <span style={{ color: "#888" }}>🔒 Locked</span>
-)}
-
+                          <AudioPlayer audioId={file._id} />
+                        ) : (
+                          <span style={{ color: "#888" }}>🔒 Locked</span>
+                        )}
                       </Popup>
                     </Marker>
                   );

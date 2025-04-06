@@ -258,7 +258,6 @@ const AudioUploadForm = () => {
 
   return (
     <>
-      <Navbar />
       <div style={styles.container}>
         <h1 style={{ color: '#ffffff', textAlign: 'center', marginBottom: '20px' }}>Upload Audio</h1>
         <form onSubmit={handleSubmit}>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { User } from 'lucide-react'; // optional: for the icon
+import Navbar from '@/components/Navbar';
 
 export default function UserProfile() {
   const [userData, setUserData] = useState(null);
@@ -34,31 +35,109 @@ export default function UserProfile() {
     fetchUserData();
   }, [token]);
 
-  if (loading) return <div className="p-4 text-center text-white">Loading profile...</div>;
+  if (loading) return (
+    <>
+      <Navbar />
+      <div style={{
+        minHeight: 'calc(100vh - 64px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#000000'
+      }}>
+        <div style={{ color: '#00ff9d' }}>Loading profile...</div>
+      </div>
+    </>
+  );
 
-  if (!userData) return <div className="p-4 text-center text-red-500">Failed to load profile.</div>;
+  if (!userData) return (
+    <>
+      <Navbar />
+      <div style={{
+        minHeight: 'calc(100vh - 64px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#000000'
+      }}>
+        <div style={{ color: '#ff4d4d' }}>Failed to load profile.</div>
+      </div>
+    </>
+  );
+
+  const styles = {
+    container: {
+      minHeight: 'calc(100vh - 64px)',
+      backgroundColor: '#000000',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: '40px 20px',
+    },
+    card: {
+      maxWidth: '480px',
+      width: '100%',
+      padding: '60px',
+      borderRadius: '24px',
+      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+      backgroundColor: '#000000',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+    },
+    header: {
+      display: 'flex',
+      alignItems: 'center',
+      marginBottom: '40px',
+    },
+    title: {
+      color: '#ffffff',
+      fontSize: '32px',
+      fontWeight: '700',
+      marginLeft: '12px',
+    },
+    section: {
+      marginBottom: '32px',
+    },
+    label: {
+      fontSize: '16px',
+      fontWeight: '500',
+      color: '#00ff9d',
+      marginBottom: '8px',
+    },
+    value: {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontWeight: '400',
+    },
+  };
 
   return (
-    <div className="max-w-md mx-auto p-6 bg-white shadow-lg rounded-xl mt-10">
-      <div className="flex items-center mb-6">
-        <User className="text-purple-800 mr-2" />
-        <h1 className="text-2xl font-semibold text-purple-800">Your Profile</h1>
-      </div>
+    <>
+      <Navbar />
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <div style={styles.header}>
+            <User size={32} style={{ color: '#00ff9d' }} />
+            <h1 style={styles.title}>Your Profile</h1>
+          </div>
 
-      <div className="mb-4">
-        <p className="text-gray-700 font-semibold">Username:</p>
-        <p className="text-gray-900">{userData.username}</p>
-      </div>
+          <div style={styles.section}>
+            <p style={styles.label}>Username</p>
+            <p style={styles.value}>{userData.username}</p>
+          </div>
 
-      <div className="mb-4">
-        <p className="text-gray-700 font-semibold">Email:</p>
-        <p className="text-gray-900">{userData.email}</p>
-      </div>
+          <div style={styles.section}>
+            <p style={styles.label}>Email</p>
+            <p style={styles.value}>{userData.email}</p>
+          </div>
 
-      <div className="mb-4">
-        <p className="text-gray-700 font-semibold">Account Created At:</p>
-        <p className="text-gray-900">{new Date(userData.created_at).toLocaleString()}</p>
+          <div style={styles.section}>
+            <p style={styles.label}>Account Created</p>
+            <p style={styles.value}>
+              {new Date(userData.created_at).toLocaleString()}
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

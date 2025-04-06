@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { User } from 'lucide-react'; // optional: for the icon
+import { User, Users } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 
 export default function UserProfile() {
   const [userData, setUserData] = useState(null);
+  const [following, setFollowing] = useState([]);
+  const [followers, setFollowers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingLists, setLoadingLists] = useState(true);
   const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
 
   useEffect(() => {
@@ -24,11 +27,42 @@ export default function UserProfile() {
 
         if (data.status === 'success') {
           setUserData(data.user_data);
+          fetchFollowingAndFollowers(data.user_data._id);
         }
       } catch (err) {
         console.error('❌ Error fetching user profile:', err);
       } finally {
         setLoading(false);
+      }
+    };
+
+    const fetchFollowingAndFollowers = async (userId) => {
+      try {
+        setLoadingLists(true);
+        const [followingRes, followersRes] = await Promise.all([
+          fetch(`https://echo-trails-backend.vercel.app/users/following/${userId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+          fetch(`https://echo-trails-backend.vercel.app/users/followers/${userId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+        ]);
+
+        const [followingData, followersData] = await Promise.all([
+          followingRes.json(),
+          followersRes.json(),
+        ]);
+
+        setFollowing(followingData.following || []);
+        setFollowers(followersData.followers || []);
+      } catch (err) {
+        console.error('❌ Error fetching following/followers:', err);
+      } finally {
+        setLoadingLists(false);
       }
     };
 
@@ -108,6 +142,36 @@ export default function UserProfile() {
       color: '#ffffff',
       fontWeight: '400',
     },
+    listContainer: {
+      marginTop: '16px',
+      maxHeight: '200px',
+      overflowY: 'auto',
+      padding: '8px',
+      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      borderRadius: '8px',
+    },
+    listItem: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '8px 12px',
+      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    },
+    listItemText: {
+      color: '#ffffff',
+      fontSize: '14px',
+    },
+    loadingText: {
+      color: '#00ff9d',
+      textAlign: 'center',
+      padding: '16px',
+    },
+    emptyText: {
+      color: '#ffffff',
+      textAlign: 'center',
+      padding: '16px',
+      opacity: 0.7,
+    },
   };
 
   return (
@@ -135,6 +199,48 @@ export default function UserProfile() {
             <p style={styles.value}>
               {new Date(userData.created_at).toLocaleString()}
             </p>
+          </div>
+
+          <div style={styles.section}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+              <Users size={20} style={{ color: '#00ff9d', marginRight: '8px' }} />
+              <p style={styles.label}>Following ({following.length})</p>
+            </div>
+            <div style={styles.listContainer}>
+              {loadingLists ? (
+                <div style={styles.loadingText}>Loading...</div>
+              ) : following.length === 0 ? (
+                <div style={styles.emptyText}>Not following anyone yet</div>
+              ) : (
+                following.map((user) => (
+                  <div key={user._id} style={styles.listItem}>
+                    <span style={styles.listItemText}>{user.username}</span>
+                    <span style={{ ...styles.listItemText, opacity: 0.7 }}>{user.email}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div style={styles.section}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+              <Users size={20} style={{ color: '#00ff9d', marginRight: '8px' }} />
+              <p style={styles.label}>Followers ({followers.length})</p>
+            </div>
+            <div style={styles.listContainer}>
+              {loadingLists ? (
+                <div style={styles.loadingText}>Loading...</div>
+              ) : followers.length === 0 ? (
+                <div style={styles.emptyText}>No followers yet</div>
+              ) : (
+                followers.map((user) => (
+                  <div key={user._id} style={styles.listItem}>
+                    <span style={styles.listItemText}>{user.username}</span>
+                    <span style={{ ...styles.listItemText, opacity: 0.7 }}>{user.email}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>

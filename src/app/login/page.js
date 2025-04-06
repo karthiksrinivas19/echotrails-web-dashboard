@@ -231,7 +231,8 @@ export default function LoginPage() {
                 </button>
                 {error && <p style={styles.error}>{error}</p>}
                 <p style={styles.footerText}>
-  Don&apos;t have an account?{' '}
+                Don&apos;t have an account?
+                {' '}
   <a 
     href="/signup" 
     style={styles.link}

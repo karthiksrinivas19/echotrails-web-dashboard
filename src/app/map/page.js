@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
-import UploadAudioPage from "../upload/page"; // Adjust path if needed
+import UploadAudioPage from "../upload/page";
+import Navbar from '@/components/Navbar';
 
+// Dynamically import individual components
 const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
@@ -17,8 +19,10 @@ export default function AudioMap() {
   const [audioFiles, setAudioFiles] = useState([]);
   const [markerIcon, setMarkerIcon] = useState(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     import("leaflet").then((L) => {
       delete L.Icon.Default.prototype._getIconUrl;
       L.Icon.Default.mergeOptions({
@@ -61,53 +65,112 @@ export default function AudioMap() {
     typeof file.location.coordinates[1] === "number"
   );
 
+  const styles = {
+    container: {
+      minHeight: '100vh',
+      backgroundColor: '#000000',
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    mapContainer: {
+      flex: 1,
+      position: 'relative',
+      height: 'calc(100vh - 80px)',
+    },
+    mapWrapper: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+    },
+    uploadButton: {
+      position: 'absolute',
+      top: '20px',
+      left: '20px',
+      zIndex: 1000,
+      padding: '10px 20px',
+      fontSize: '16px',
+      fontWeight: '600',
+      color: '#000000',
+      backgroundColor: '#00ff9d',
+      border: 'none',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      boxShadow: '0 0 20px rgba(0, 255, 157, 0.2)',
+    },
+    uploadContainer: {
+      position: 'absolute',
+      zIndex: 999,
+      top: '80px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      width: '90%',
+      maxWidth: '500px',
+      backgroundColor: '#000000',
+      boxShadow: '0 0 30px rgba(0, 0, 0, 0.3)',
+      borderRadius: '16px',
+      overflow: 'auto',
+      maxHeight: 'calc(90% - 80px)',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+    }
+  };
+
   return (
-    <div className="h-screen w-screen relative">
-      {/* Toggle Upload Button */}
-      <div className="absolute top-4 left-4 z-[1000]">
+    <div style={styles.container}>
+      <style jsx global>{`
+        .leaflet-container {
+          width: 100%;
+          height: 100%;
+        }
+      `}</style>
+      <Navbar />
+      <div style={styles.mapContainer}>
         <button
           onClick={() => setShowUpload((prev) => !prev)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg"
+          style={styles.uploadButton}
         >
           {showUpload ? "Close Upload" : "Upload Audio"}
         </button>
-      </div>
 
-      {/* Upload Component (conditionally shown above the map) */}
-      {showUpload && (
-        <div className="absolute z-[999] top-20 left-1/2 transform -translate-x-1/2 w-[90%] max-w-md bg-white shadow-lg rounded-lg overflow-auto max-h-[90%]">
-          <UploadAudioPage />
+        {showUpload && (
+          <div style={styles.uploadContainer}>
+            <UploadAudioPage />
+          </div>
+        )}
+
+        <div style={styles.mapWrapper}>
+          {mounted && (
+            <MapContainer 
+              center={defaultPosition} 
+              zoom={13} 
+              style={{ height: '100%', width: '100%' }}
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; OpenStreetMap contributors'
+              />
+              {markerIcon && validAudioFiles.map((file, index) => (
+                <Marker
+                  key={`${file._id}-${index}`}
+                  position={[
+                    file.location.coordinates[1],
+                    file.location.coordinates[0],
+                  ]}
+                  icon={markerIcon}
+                >
+                  <Popup>
+                    <b>{file.file_name}</b> <br />
+                    Range: {file.range}m <br />
+                    Hidden Until: {new Date(file.hidden_until).toLocaleString()} <br />
+                    Created At: {new Date(file.created_at).toLocaleString()}
+                  </Popup>
+                </Marker>
+              ))}
+            </MapContainer>
+          )}
         </div>
-      )}
-
-      {/* Map */}
-      {typeof window !== 'undefined' && (
-        <Suspense fallback={<div>Loading map...</div>}>
-          <MapContainer center={defaultPosition} zoom={13} className="h-full w-full z-0">
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; OpenStreetMap contributors'
-            />
-            {markerIcon && validAudioFiles.map((file, index) => (
-              <Marker
-                key={`${file._id}-${index}`}
-                position={[
-                  file.location.coordinates[1],
-                  file.location.coordinates[0],
-                ]}
-                icon={markerIcon}
-              >
-                <Popup>
-                  <b>{file.file_name}</b> <br />
-                  Range: {file.range}m <br />
-                  Hidden Until: {new Date(file.hidden_until).toLocaleString()} <br />
-                  Created At: {new Date(file.created_at).toLocaleString()}
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-        </Suspense>
-      )}
+      </div>
     </div>
   );
 }

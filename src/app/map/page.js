@@ -6,8 +6,7 @@ import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
 import UploadAudioPage from "../upload/page";
 import Navbar from '@/components/Navbar';
-
-// Dynamically import Leaflet components
+import AudioPlayer from "@/components/Audioplayer";
 const MapContainer = dynamic(() => import("react-leaflet").then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import("react-leaflet").then(mod => mod.Marker), { ssr: false });
@@ -101,6 +100,43 @@ export default function AudioMap() {
       typeof file.location.coordinates[1] === "number"
   );
 
+  const handlePlay = async (audioId) => {
+    const token = localStorage.getItem("authToken");
+    try {
+      const response = await axios.get(`https://echo-trails-backend.vercel.app/audio/files/${audioId}/download`, {
+        responseType: 'blob',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const audioBlob = response.data;
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audio.play();
+    } catch (err) {
+      console.error("❌ Audio playback error:", err);
+      if (err.response) {
+        const status = err.response.status;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const json = JSON.parse(reader.result);
+            console.error("📜 Server error message:", json.detail);
+
+            if (status === 403) alert("🔒 Not authorized or still locked.");
+            else if (status === 404) alert("🚫 Audio not found.");
+            else alert("⚠️ Something went wrong.");
+          } catch (e) {
+            alert("⚠️ Unexpected error while reading server response.");
+          }
+        };
+        reader.readAsText(err.response.data);
+      } else {
+        alert("⚠️ Network or server error.");
+      }
+    }
+  };
+
   const styles = {
     container: {
       minHeight: '100vh',
@@ -187,45 +223,6 @@ export default function AudioMap() {
                 validAudioFiles.map((file, idx) => {
                   const isAccessible = file.isNearby && new Date(file.hidden_until) <= new Date();
 
-                  const handlePlay = async () => {
-                    try {
-                      const response = await axios.get(`/audio/files/${audioId}/download`, {
-                        responseType: 'blob',
-                        headers: { Authorization: `Bearer ${token}` },
-                      });
-                  
-                      const audioBlob = response.data;
-                      const audioUrl = URL.createObjectURL(audioBlob);
-                      const audio = new Audio(audioUrl);
-                      audio.play();
-                    } catch (err) {
-                      console.error("❌ Audio playback error:", err);
-                      if (err.response) {
-                        const status = err.response.status;
-                  
-                        // Read JSON from blob
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          try {
-                            const json = JSON.parse(reader.result);
-                            console.error("📜 Server error message:", json.detail);
-                  
-                            if (status === 403) alert("🔒 Not authorized or still locked.");
-                            else if (status === 404) alert("🚫 Audio not found.");
-                            else alert("⚠️ Something went wrong.");
-                          } catch (e) {
-                            alert("⚠️ Unexpected error while reading server response.");
-                          }
-                        };
-                        reader.readAsText(err.response.data);
-                      } else {
-                        alert("⚠️ Network or server error.");
-                      }
-                    }
-                  };
-                  
-                  
-
                   return (
                     <Marker
                       key={`${file._id}-${idx}`}
@@ -242,22 +239,11 @@ export default function AudioMap() {
                         Created At: {new Date(file.created_at).toLocaleString()}<br /><br />
 
                         {isAccessible ? (
-                          <button
-                            onClick={handlePlay}
-                            style={{
-                              padding: "6px 12px",
-                              backgroundColor: "#00ff9d",
-                              color: "#000",
-                              border: "none",
-                              borderRadius: "6px",
-                              cursor: "pointer",
-                            }}
-                          >
-                            ▶️ Play Audio
-                          </button>
-                        ) : (
-                          <span style={{ color: "#888" }}>🔒 Locked</span>
-                        )}
+  <AudioPlayer audioId={file._id} />
+) : (
+  <span style={{ color: "#888" }}>🔒 Locked</span>
+)}
+
                       </Popup>
                     </Marker>
                   );

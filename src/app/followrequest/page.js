@@ -3,14 +3,15 @@
 import { useEffect, useState } from 'react'
 
 const FollowRequestPage = () => {
-  const [allUsers, setAllUsers] = useState([])
-  const [filteredUsers, setFilteredUsers] = useState([])
-  const [search, setSearch] = useState('')
+  const [allUsers, setAllUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [search, setSearch] = useState('');
+  const [buttonTexts, setButtonTexts] = useState({}); // Store button states for all users
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const authToken = localStorage.getItem('authToken')
-      if (!authToken) return
+      const authToken = localStorage.getItem('authToken');
+      if (!authToken) return;
 
       try {
         const res = await fetch('https://echo-trails-backend.vercel.app/users/all', {
@@ -18,48 +19,59 @@ const FollowRequestPage = () => {
           headers: {
             Authorization: `Bearer ${authToken}`,
           },
-        })
+        });
 
-        if (!res.ok) throw new Error('Failed to fetch users')
+        if (!res.ok) throw new Error('Failed to fetch users');
 
-        const data = await res.json()
-        setAllUsers(data)
-        setFilteredUsers(data)
+        const data = await res.json();
+        setAllUsers(data);
+        setFilteredUsers(data);
       } catch (error) {
-        console.error('Error fetching users:', error)
+        console.error('Error fetching users:', error);
       }
-    }
+    };
 
-    fetchUsers()
-  }, [])
+    fetchUsers();
+  }, []);
 
   useEffect(() => {
-    const filtered = allUsers.filter(user =>
+    const filtered = allUsers.filter((user) =>
       user.username.toLowerCase().includes(search.toLowerCase())
-    )
-    setFilteredUsers(filtered)
-  }, [search, allUsers])
+    );
+    setFilteredUsers(filtered);
+  }, [search, allUsers]);
 
   const handleFollow = async (username) => {
-    const authToken = localStorage.getItem('authToken')
-    if (!authToken) return
+    const authToken = localStorage.getItem('authToken');
+    if (!authToken) return;
 
     try {
-      const res = await fetch(`https://echo-trails-backend.vercel.app/users/follow/${username}`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      })
+      const res = await fetch(
+        `https://echo-trails-backend.vercel.app/users/follow/request/${username}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        }
+      );
 
-      if (!res.ok) throw new Error('Failed to send follow request')
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error('Error response:', errorData);
+        if (errorData.detail === 'Follow request already pending') {
+          setButtonTexts((prev) => ({ ...prev, [username]: 'Requested' }));
+        }
+        throw new Error('Failed to send follow request');
+      }
 
-      alert(`Follow request sent to ${username}`)
+      alert(`Follow request sent to ${username}`);
+      setButtonTexts((prev) => ({ ...prev, [username]: 'Requested' }));
     } catch (error) {
-      console.error('Error sending follow request:', error)
-      alert('Failed to send follow request')
+      console.error('Error sending follow request:', error);
+      alert('Failed to send follow request');
     }
-  }
+  };
 
   const styles = {
     container: {
@@ -147,14 +159,14 @@ const FollowRequestPage = () => {
         style={styles.input}
       />
       <div style={styles.userList}>
-        {filteredUsers.map((user, index) => (
-          <div key={index} style={styles.userItem}>
+        {filteredUsers.map((user) => (
+          <div key={user.username} style={styles.userItem}>
             <span style={styles.username}>{user.username}</span>
             <button
               style={styles.followButton}
               onClick={() => handleFollow(user.username)}
             >
-              Follow
+              {buttonTexts[user.username] || 'Follow'}
             </button>
           </div>
         ))}

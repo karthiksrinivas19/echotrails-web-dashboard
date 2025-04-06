@@ -7,62 +7,98 @@ import "leaflet/dist/leaflet.css";
 import UploadAudioPage from "../upload/page";
 import Navbar from '@/components/Navbar';
 
-// Dynamically import individual components
-const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
-const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
-const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false });
+// Dynamically import Leaflet components
+const MapContainer = dynamic(() => import("react-leaflet").then(mod => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import("react-leaflet").then(mod => mod.TileLayer), { ssr: false });
+const Marker = dynamic(() => import("react-leaflet").then(mod => mod.Marker), { ssr: false });
+const Popup = dynamic(() => import("react-leaflet").then(mod => mod.Popup), { ssr: false });
 
 const defaultPosition = [12.9716, 77.5946];
 
 export default function AudioMap() {
   const [audioFiles, setAudioFiles] = useState([]);
-  const [markerIcon, setMarkerIcon] = useState(null);
+  const [markerIcon, setMarkerIcon] = useState({ default: null, nearby: null });
   const [showUpload, setShowUpload] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    import("leaflet").then((L) => {
-      delete L.Icon.Default.prototype._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-        iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-        shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-      });
 
-      const icon = new L.Icon({
-        iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-      });
+    const L = require("leaflet");
 
-      setMarkerIcon(icon);
+    const defaultIcon = L.icon({
+      iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
     });
 
-    async function fetchData() {
-      const bearerToken = localStorage.getItem("authToken");
-      try {
-        const response = await axios.get("https://echo-trails-backend.vercel.app/audio/user/files", {
-          headers: { Authorization: `Bearer ${bearerToken}` },
-        });
-        const allFiles = response.data.audio_files || [];
-        setAudioFiles(allFiles);
-      } catch (error) {
-        console.error("❌ Error fetching audio files:", error);
-      }
-    }
+    const nearbyIcon = L.icon({
+      iconUrl: "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+    });
 
-    fetchData();
+    setMarkerIcon({ default: defaultIcon, nearby: nearbyIcon });
+
+    fetchAudioAndNearbyFiles();
   }, []);
 
-  const validAudioFiles = audioFiles.filter((file) =>
-    file?.location &&
-    Array.isArray(file.location.coordinates) &&
-    file.location.coordinates.length === 2 &&
-    typeof file.location.coordinates[0] === "number" &&
-    typeof file.location.coordinates[1] === "number"
+  async function fetchAudioAndNearbyFiles() {
+    const bearerToken = localStorage.getItem("authToken");
+    if (!navigator.geolocation) return;
+
+    try {
+      const userRes = await axios.get("https://echo-trails-backend.vercel.app/audio/user/files", {
+        headers: { Authorization: `Bearer ${bearerToken}` },
+      });
+      const userFiles = userRes.data.audio_files || [];
+
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        try {
+          const nearbyRes = await axios.get(
+            `https://echo-trails-backend.vercel.app/audio/nearby/?latitude=${latitude}&longitude=${longitude}`,
+            {
+              headers: { Authorization: `Bearer ${bearerToken}` },
+            }
+          );
+
+          const nearbyFiles = nearbyRes.data.nearby_files || [];
+          const nearbyIds = new Set(nearbyFiles.map(file => file._id));
+
+          const allFilesMap = new Map();
+
+          for (const file of userFiles) {
+            allFilesMap.set(file._id, { ...file, isNearby: nearbyIds.has(file._id) });
+          }
+
+          for (const file of nearbyFiles) {
+            if (!allFilesMap.has(file._id)) {
+              allFilesMap.set(file._id, { ...file, isNearby: true });
+            }
+          }
+
+          setAudioFiles(Array.from(allFilesMap.values()));
+        } catch (err) {
+          console.error("❌ Error fetching nearby audio files:", err);
+        }
+      });
+    } catch (err) {
+      console.error("❌ Error fetching user audio files:", err);
+    }
+  }
+
+  const validAudioFiles = audioFiles.filter(
+    (file) =>
+      file?.location &&
+      Array.isArray(file.location.coordinates) &&
+      file.location.coordinates.length === 2 &&
+      typeof file.location.coordinates[0] === "number" &&
+      typeof file.location.coordinates[1] === "number"
   );
 
   const styles = {
@@ -126,10 +162,7 @@ export default function AudioMap() {
       `}</style>
       <Navbar />
       <div style={styles.mapContainer}>
-        <button
-          onClick={() => setShowUpload((prev) => !prev)}
-          style={styles.uploadButton}
-        >
+        <button onClick={() => setShowUpload((prev) => !prev)} style={styles.uploadButton}>
           {showUpload ? "Close Upload" : "Upload Audio"}
         </button>
 
@@ -141,32 +174,94 @@ export default function AudioMap() {
 
         <div style={styles.mapWrapper}>
           {mounted && (
-            <MapContainer 
-              center={defaultPosition} 
-              zoom={13} 
+            <MapContainer
+              center={defaultPosition}
+              zoom={13}
               style={{ height: '100%', width: '100%' }}
             >
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; OpenStreetMap contributors'
               />
-              {markerIcon && validAudioFiles.map((file, index) => (
-                <Marker
-                  key={`${file._id}-${index}`}
-                  position={[
-                    file.location.coordinates[1],
-                    file.location.coordinates[0],
-                  ]}
-                  icon={markerIcon}
-                >
-                  <Popup>
-                    <b>{file.file_name}</b> <br />
-                    Range: {file.range}m <br />
-                    Hidden Until: {new Date(file.hidden_until).toLocaleString()} <br />
-                    Created At: {new Date(file.created_at).toLocaleString()}
-                  </Popup>
-                </Marker>
-              ))}
+              {markerIcon.default &&
+                validAudioFiles.map((file, idx) => {
+                  const isAccessible = file.isNearby && new Date(file.hidden_until) <= new Date();
+
+                  const handlePlay = async () => {
+                    try {
+                      const response = await axios.get(`/audio/files/${audioId}/download`, {
+                        responseType: 'blob',
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                  
+                      const audioBlob = response.data;
+                      const audioUrl = URL.createObjectURL(audioBlob);
+                      const audio = new Audio(audioUrl);
+                      audio.play();
+                    } catch (err) {
+                      console.error("❌ Audio playback error:", err);
+                      if (err.response) {
+                        const status = err.response.status;
+                  
+                        // Read JSON from blob
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          try {
+                            const json = JSON.parse(reader.result);
+                            console.error("📜 Server error message:", json.detail);
+                  
+                            if (status === 403) alert("🔒 Not authorized or still locked.");
+                            else if (status === 404) alert("🚫 Audio not found.");
+                            else alert("⚠️ Something went wrong.");
+                          } catch (e) {
+                            alert("⚠️ Unexpected error while reading server response.");
+                          }
+                        };
+                        reader.readAsText(err.response.data);
+                      } else {
+                        alert("⚠️ Network or server error.");
+                      }
+                    }
+                  };
+                  
+                  
+
+                  return (
+                    <Marker
+                      key={`${file._id}-${idx}`}
+                      position={[file.location.coordinates[1], file.location.coordinates[0]]}
+                      icon={file.isNearby ? markerIcon.nearby : markerIcon.default}
+                    >
+                      <Popup>
+                        <b>{file.file_name}</b><br />
+                        <span style={{ color: file.isNearby ? "green" : "blue" }}>
+                          {file.isNearby ? "✅ Nearby" : "📍 Not Nearby"}
+                        </span><br />
+                        Range: {file.range}m<br />
+                        Hidden Until: {new Date(file.hidden_until).toLocaleString()}<br />
+                        Created At: {new Date(file.created_at).toLocaleString()}<br /><br />
+
+                        {isAccessible ? (
+                          <button
+                            onClick={handlePlay}
+                            style={{
+                              padding: "6px 12px",
+                              backgroundColor: "#00ff9d",
+                              color: "#000",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            ▶️ Play Audio
+                          </button>
+                        ) : (
+                          <span style={{ color: "#888" }}>🔒 Locked</span>
+                        )}
+                      </Popup>
+                    </Marker>
+                  );
+                })}
             </MapContainer>
           )}
         </div>

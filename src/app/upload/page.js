@@ -96,6 +96,7 @@ const AudioUploadForm = () => {
               latitude,
               longitude,
               range: parseFloat(range),
+              hiddenUntil: hiddenUntil.toISOString(),
               audioId: response.data.audioId, // Assuming response contains audioId
               recipients: recipientUsernames, // Store recipients as a string
             });

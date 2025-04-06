@@ -53,98 +53,193 @@ export default function LoginPage() {
         }
     };
 
+    const styles = {
+        container: {
+            maxWidth: '480px',
+            margin: '40px auto',
+            padding: '60px',
+            borderRadius: '24px',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+            backgroundColor: '#000000',
+            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            minHeight: '600px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+        },
+        logoContainer: {
+            display: 'flex',
+            justifyContent: 'center',
+            marginBottom: '32px',
+        },
+        logo: {
+            width: '80px',
+            height: '80px',
+            borderRadius: '20px',
+            backgroundColor: '#00ff9d',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#000000',
+            fontSize: '32px',
+            fontWeight: 'bold',
+            boxShadow: '0 0 20px rgba(0, 255, 157, 0.3)',
+        },
+        title: {
+            textAlign: 'center',
+            marginBottom: '12px',
+            color: '#ffffff',
+            fontSize: '32px',
+            fontWeight: '700',
+        },
+        subtitle: {
+            textAlign: 'center',
+            color: '#a0a0a0',
+            fontSize: '18px',
+            marginBottom: '40px',
+        },
+        form: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '32px',
+        },
+        inputGroup: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+        },
+        label: {
+            fontSize: '16px',
+            fontWeight: '500',
+            color: '#ffffff',
+            marginLeft: '4px',
+        },
+        input: {
+            padding: '18px 20px',
+            fontSize: '18px',
+            borderRadius: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            color: '#ffffff',
+            height: '60px',
+            outline: 'none',
+        },
+        button: {
+            padding: '20px',
+            fontSize: '18px',
+            fontWeight: '600',
+            color: '#000000',
+            backgroundColor: '#00ff9d',
+            border: 'none',
+            borderRadius: '16px',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            marginTop: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            boxShadow: '0 0 20px rgba(0, 255, 157, 0.2)',
+            height: '64px',
+        },
+        buttonDisabled: {
+            backgroundColor: '#333333',
+            cursor: 'not-allowed',
+            color: '#666666',
+            boxShadow: 'none',
+        },
+        error: {
+            marginTop: '24px',
+            textAlign: 'center',
+            color: '#ff4d4d',
+            fontSize: '16px',
+            padding: '16px',
+            borderRadius: '16px',
+            backgroundColor: 'rgba(255, 77, 77, 0.1)',
+            border: '1px solid rgba(255, 77, 77, 0.2)',
+        },
+        footerText: {
+            textAlign: 'center',
+            color: '#a0a0a0',
+            fontSize: '16px',
+            marginTop: '32px',
+        },
+        link: {
+            color: '#00ff9d',
+            textDecoration: 'none',
+            fontWeight: '500',
+        },
+        loadingSpinner: {
+            width: '24px',
+            height: '24px',
+            border: '2px solid #000000',
+            borderTop: '2px solid transparent',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+        },
+    };
+
     return (
         <div style={styles.container}>
-            <div style={styles.card}>
-                <h1 style={styles.title}>Welcome Back</h1>
-                <form style={styles.form} onSubmit={handleSubmit}>
+            <div style={styles.logoContainer}>
+                <div style={styles.logo}>ET</div>
+            </div>
+            <h1 style={styles.title}>Welcome Back</h1>
+            <p style={styles.subtitle}>Sign in to continue your journey</p>
+            <form onSubmit={handleSubmit} style={styles.form}>
+                <div style={styles.inputGroup}>
+                    <label htmlFor="email" style={styles.label}>Email</label>
                     <input
+                        id="email"
                         type="email"
-                        placeholder="Email"
+                        placeholder="Enter your email"
                         style={styles.input}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
                     />
+                </div>
+                <div style={styles.inputGroup}>
+                    <label htmlFor="password" style={styles.label}>Password</label>
                     <input
+                        id="password"
                         type="password"
-                        placeholder="Password"
+                        placeholder="Enter your password"
                         style={styles.input}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                     />
-                    <button type="submit" style={styles.button} disabled={loading}>
-                        {loading ? 'Logging in...' : 'Login'}
-                    </button>
-                </form>
-                {error && <p style={styles.errorText}>{error}</p>}
+                </div>
+                <button 
+                    type="submit" 
+                    style={{
+                        ...styles.button,
+                        ...(loading ? styles.buttonDisabled : {}),
+                    }}
+                    disabled={loading}
+                >
+                    {loading ? (
+                        <>
+                            <div style={styles.loadingSpinner} />
+                            Signing in...
+                        </>
+                    ) : (
+                        'Sign In'
+                    )}
+                </button>
+                {error && <p style={styles.error}>{error}</p>}
                 <p style={styles.footerText}>
-                    Don't have an account? <a href="/signup" style={styles.link}>Sign up</a>
+                    Don't have an account?{' '}
+                    <a 
+                        href="/signup" 
+                        style={styles.link}
+                    >
+                        Sign up
+                    </a>
                 </p>
-            </div>
+            </form>
         </div>
     );
 }
-
-const styles = {
-    container: {
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        backgroundColor: '#f3f4f6',
-        margin: 0,
-    },
-    card: {
-        backgroundColor: '#ffffff',
-        padding: '2rem',
-        borderRadius: '8px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        textAlign: 'center',
-        width: '100%',
-        maxWidth: '400px',
-    },
-    title: {
-        fontSize: '1.5rem',
-        marginBottom: '1rem',
-        color: '#333333',
-    },
-    form: {
-        display: 'flex',
-        flexDirection: 'column',
-    },
-    input: {
-        padding: '0.75rem',
-        margin: '0.5rem 0',
-        borderRadius: '4px',
-        border: '1px solid #d1d5db',
-        fontSize: '1rem',
-    },
-    button: {
-        padding: '0.75rem',
-        margin: '1rem 0',
-        borderRadius: '4px',
-        border: 'none',
-        backgroundColor: '#3b82f6',
-        color: '#ffffff',
-        fontSize: '1rem',
-        cursor: 'pointer',
-    },
-    buttonHover: {
-        backgroundColor: '#2563eb',
-    },
-    footerText: {
-        fontSize: '0.875rem',
-        color: '#6b7280',
-    },
-    link: {
-        color: '#3b82f6',
-        textDecoration: 'none',
-    },
-    errorText: {
-        color: 'red',
-        fontSize: '0.875rem',
-        marginTop: '0.5rem',
-    },
-};

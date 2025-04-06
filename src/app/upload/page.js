@@ -10,6 +10,7 @@ export default function UploadAudioPage() {
   const [range, setRange] = useState('');
   const [hiddenUntil, setHiddenUntil] = useState('');
   const [message, setMessage] = useState('');
+  const [sendTo, setSendTo] = useState('self');
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -45,6 +46,7 @@ export default function UploadAudioPage() {
     formData.append('longitude', longitude);
     formData.append('range', range);
     formData.append('hidden_until', hiddenUntil);
+    formData.append('send_to', sendTo);
 
     try {
       const token = localStorage.getItem('authToken');
@@ -64,17 +66,26 @@ export default function UploadAudioPage() {
       const result = await response.json();
       if (response.ok) {
         setMessage(`Upload successful! Audio ID: ${result.id}`);
-        localStorage.setItem('audioData', JSON.stringify({
+
+        const newAudio = {
           id: result.id,
+          title,
           latitude,
           longitude,
           range,
-          hiddenUntil
-        }));
+          hiddenUntil,
+          uploadedAt: new Date().toISOString(),
+        };
+
+        // Get existing audio array or initialize
+        const existingData = JSON.parse(localStorage.getItem('audioDataArray') || '[]');
+        existingData.push(newAudio);
+        localStorage.setItem('audioDataArray', JSON.stringify(existingData));
       } else {
         setMessage(`Upload failed: ${result.detail}`);
       }
     } catch (error) {
+      console.error(error);
       setMessage('An error occurred while uploading.');
     }
   };
@@ -84,11 +95,40 @@ export default function UploadAudioPage() {
       <h1 className="text-xl font-bold mb-4">Upload Audio File</h1>
       <form onSubmit={handleSubmit} className="space-y-3">
         <input type="file" accept="audio/*" onChange={handleFileChange} className="block w-full" required />
-        <input type="text" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} className="block w-full border p-2" required />
+        <input
+          type="text"
+          placeholder="Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="block w-full border p-2"
+          required
+        />
         <p className="text-gray-600">Latitude: {latitude || 'Fetching...'}</p>
         <p className="text-gray-600">Longitude: {longitude || 'Fetching...'}</p>
-        <input type="number" step="any" placeholder="Range" value={range} onChange={(e) => setRange(e.target.value)} className="block w-full border p-2" required />
-        <input type="datetime-local" value={hiddenUntil} onChange={(e) => setHiddenUntil(e.target.value)} className="block w-full border p-2" required />
+        <input
+          type="number"
+          step="any"
+          placeholder="Range"
+          value={range}
+          onChange={(e) => setRange(e.target.value)}
+          className="block w-full border p-2"
+          required
+        />
+        <input
+          type="datetime-local"
+          value={hiddenUntil}
+          onChange={(e) => setHiddenUntil(e.target.value)}
+          className="block w-full border p-2"
+          required
+        />
+        <input
+          type="text"
+          placeholder="Send To (e.g., self, user1, user2)"
+          value={sendTo}
+          onChange={(e) => setSendTo(e.target.value)}
+          className="block w-full border p-2"
+          required
+        />
         <button type="submit" className="bg-blue-500 text-white p-2 w-full">Upload</button>
       </form>
       {message && <p className="mt-4 text-red-500">{message}</p>}

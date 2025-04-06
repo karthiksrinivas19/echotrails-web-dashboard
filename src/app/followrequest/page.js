@@ -159,8 +159,8 @@ const FollowRequestPage = () => {
         style={styles.input}
       />
       <div style={styles.userList}>
-        {filteredUsers.map((user) => (
-          <div key={user.username} style={styles.userItem}>
+        {filteredUsers.map((user, index) => (
+          <div key={`${user.username}-${index}`} style={styles.userItem}>
             <span style={styles.username}>{user.username}</span>
             <button
               style={styles.followButton}

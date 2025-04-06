@@ -7,7 +7,6 @@ import Navbar from '@/components/Navbar';
 export default function UserProfile() {
   const [userData, setUserData] = useState(null);
   const [following, setFollowing] = useState([]);
-  const [followers, setFollowers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingLists, setLoadingLists] = useState(true);
   const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
@@ -48,50 +47,42 @@ export default function UserProfile() {
           },
         });
     
-        const followersRes = await fetch(`https://echo-trails-backend.vercel.app/users/followers/${userId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-    
         const followingData = await followingRes.json();
-        const followersData = await followersRes.json();
     
         console.log('✅ Following Response:', followingData);
         console.log('🔍 Following Users:', followingData.users);
     
         setFollowing(followingData || []);
-        setFollowers(followersData.followers || []);
       } catch (err) {
-        console.error('❌ Error fetching following/followers:', err);
+        console.error('❌ Error fetching following:', err);
       } finally {
         setLoadingLists(false);
       }
     };
-    
 
     fetchUserData();
   }, [token]);
 
-  const removeFollower = async (username) => {
+  const handleUnfollow = async (userId) => {
     try {
-      const res = await fetch(`https://echo-trails-backend.vercel.app/followers/remove/${username}`, {
+      const res = await fetch(`https://echo-trails-backend.vercel.app/users/unfollow`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ userId }),
       });
 
       const data = await res.json();
 
-      if (res.ok) {
-        alert(data.message);
-        setFollowers((prevFollowers) => prevFollowers.filter((user) => user.username !== username));
+      if (data.status === 'success') {
+        setFollowing((prevFollowing) => prevFollowing.filter((user) => user.id !== userId));
       } else {
-        console.error('❌ Error removing follower:', data);
+        console.error('❌ Failed to unfollow user:', data);
       }
     } catch (err) {
-      console.error('❌ Error removing follower:', err);
+      console.error('❌ Error unfollowing user:', err);
     }
   };
 
@@ -227,30 +218,16 @@ export default function UserProfile() {
                 following.map((user) => (
                   <div key={user.id} style={styles.listItem}>
                     <span style={styles.listItemText}>{user.username}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div style={styles.section}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-              <Users size={20} style={{ color: '#00ff9d', marginRight: '8px' }} />
-              <p style={styles.label}>Followers ({followers.length})</p>
-            </div>
-            <div style={styles.listContainer}>
-              {loadingLists ? (
-                <div style={styles.loadingText}>Loading...</div>
-              ) : followers.length === 0 ? (
-                <div style={styles.emptyText}>No followers yet</div>
-              ) : (
-                followers.map((user) => (
-                  <div key={user._id || user.id} style={styles.listItem}>
-                    <span style={styles.listItemText}>{user.username}</span>
-                    <span style={{ ...styles.listItemText, opacity: 0.7 }}>{user.email}</span>
                     <button 
-                      onClick={() => removeFollower(user.username)} 
-                      style={{ marginLeft: '10px', color: '#ff4d4d', background: 'none', border: 'none', cursor: 'pointer' }}
+                      style={{
+                        backgroundColor: '#ff4d4d',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        padding: '4px 8px',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => handleUnfollow(user.id)}
                     >
                       Remove
                     </button>

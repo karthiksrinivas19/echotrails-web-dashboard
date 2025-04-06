@@ -42,7 +42,7 @@ export default function LoginPage() {
             console.log('Before storing token:', data);
             localStorage.setItem('authToken', data.access_token);
             console.log('Token stored:', localStorage.getItem('authToken'));
-
+            localStorage.setItem('username', data.username);
             // Redirect to the "hello" page
             router.push('/hello');
         } catch (err) {

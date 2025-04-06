@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import Navbar from '../../components/Navbar'; // Assuming Navbar is in components folder
 
 const AudioUploadForm = () => {
   const [file, setFile] = useState(null);
@@ -51,16 +52,24 @@ const AudioUploadForm = () => {
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
       const { latitude, longitude } = pos.coords;
-      const hiddenUntil = date && time ? new Date(`${date}T${time}`) : null;
+      const hiddenUntil = date && time 
+        ? new Date(`${date}T${time}`) 
+        : new Date(Date.now() + 1000*60*60*24*365);  // Default to 1 year in future
 
       const formData = new FormData();
-      formData.append('audio', file);
+      formData.append('file', file);
       formData.append('title', title);
       formData.append('latitude', latitude);
       formData.append('longitude', longitude);
-      formData.append('range', range);
-      if (hiddenUntil) formData.append('hidden_until', hiddenUntil.toISOString());
+      formData.append('range', parseFloat(range)); // Convert range to float
+      formData.append('hidden_until', hiddenUntil.toISOString());
       formData.append('recipient_usernames', recipientUsernames.join(','));
+
+      formData.forEach((value, key) => {
+        console.log(`${key}:`, value);
+      });
+
+      console.log('File being uploaded:', file);
 
       try {
         const token = localStorage.getItem('authToken');
@@ -75,8 +84,24 @@ const AudioUploadForm = () => {
           }
         );
 
-        if (response.status === 201) {
+        if (response.status === 201 || response.status === 200) {
+          console.log('Upload successful:', response.data);
+          console.log('Upload response:', response.data);
           setMessage('Audio file uploaded successfully!');
+
+          // Store lat, long, range, and audio ID in localStorage if recipientUsernames string includes currentUsername
+          if (recipientUsernames.includes(currentUsername)) {
+            const series = JSON.parse(localStorage.getItem('audioSeries')) || [];
+            series.push({
+              latitude,
+              longitude,
+              range: parseFloat(range),
+              audioId: response.data.audioId, // Assuming response contains audioId
+              recipients: recipientUsernames, // Store recipients as a string
+            });
+            localStorage.setItem('audioSeries', JSON.stringify(series));
+          }
+
           // Reset form
           setFile(null);
           setTitle('');
@@ -231,121 +256,124 @@ const AudioUploadForm = () => {
   };
 
   return (
-    <div style={styles.container}>
-      <h1 style={{ color: '#ffffff', textAlign: 'center', marginBottom: '20px' }}>Upload Audio</h1>
-      <form onSubmit={handleSubmit}>
-        <div style={styles.inputGroup}>
-          <label style={styles.label}>Title</label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-            style={styles.input}
-          />
-        </div>
-
-        <div style={styles.inputGroup}>
-          <label style={styles.label}>Audio File</label>
-          <input
-            type="file"
-            accept="audio/*"
-            onChange={(e) => setFile(e.target.files[0])}
-            required
-            style={styles.input}
-          />
-        </div>
-
-        <div style={styles.inputGroup}>
-          <label style={styles.label}>Range (meters)</label>
-          <input
-            type="number"
-            value={range}
-            onChange={(e) => setRange(e.target.value)}
-            required
-            style={styles.input}
-          />
-        </div>
-
-        <div style={styles.inputGroup}>
-          <label style={styles.label}>Send To</label>
-          <div style={styles.dropdown}>
-            <button
-              type="button"
-              style={styles.dropdownButton}
-              onClick={toggleDropdown}
-            >
-              {recipientUsernames.length > 0
-                ? recipientUsernames.join(', ')
-                : 'Select recipients'}
-            </button>
-            {dropdownOpen && (
-              <div style={styles.dropdownList}>
-                {currentUsername && (
-                  <div
-                    style={styles.dropdownItem}
-                    onMouseEnter={(e) =>
-                      (e.target.style.backgroundColor = styles.dropdownItemHover.backgroundColor)
-                    }
-                    onMouseLeave={(e) =>
-                      (e.target.style.backgroundColor = styles.dropdownItem.backgroundColor)
-                    }
-                    onClick={() => handleSelectUser(currentUsername)}
-                  >
-                    Myself ({currentUsername})
-                  </div>
-                )}
-                {users.map((user) => (
-                  <div
-                    key={user.id}
-                    style={styles.dropdownItem}
-                    onMouseEnter={(e) =>
-                      (e.target.style.backgroundColor = styles.dropdownItemHover.backgroundColor)
-                    }
-                    onMouseLeave={(e) =>
-                      (e.target.style.backgroundColor = styles.dropdownItem.backgroundColor)
-                    }
-                    onClick={() => handleSelectUser(user.username)}
-                  >
-                    {user.username}
-                  </div>
-                ))}
-              </div>
-            )}
+    <>
+      <Navbar />
+      <div style={styles.container}>
+        <h1 style={{ color: '#ffffff', textAlign: 'center', marginBottom: '20px' }}>Upload Audio</h1>
+        <form onSubmit={handleSubmit}>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              style={styles.input}
+            />
           </div>
-        </div>
 
-        <div style={styles.inputGroup}>
-          <label style={styles.label}>Hidden Until (Optional)</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            style={styles.input}
-          />
-          <input
-            type="time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            style={styles.input}
-          />
-        </div>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Audio File</label>
+            <input
+              type="file"
+              accept="audio/*"
+              onChange={(e) => setFile(e.target.files[0])}
+              required
+              style={styles.input}
+            />
+          </div>
 
-        <button
-          type="submit"
-          style={{
-            ...styles.button,
-            ...(loading ? styles.buttonDisabled : {}),
-          }}
-          disabled={loading}
-        >
-          {loading ? 'Uploading...' : 'Upload'}
-        </button>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Range (meters)</label>
+            <input
+              type="number"
+              value={range}
+              onChange={(e) => setRange(e.target.value)}
+              required
+              style={styles.input}
+            />
+          </div>
 
-        {message && <p style={styles.success}>{message}</p>}
-        {error && <p style={styles.error}>{error}</p>}
-      </form>
-    </div>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Send To</label>
+            <div style={styles.dropdown}>
+              <button
+                type="button"
+                style={styles.dropdownButton}
+                onClick={toggleDropdown}
+              >
+                {recipientUsernames.length > 0
+                  ? recipientUsernames.join(', ')
+                  : 'Select recipients'}
+              </button>
+              {dropdownOpen && (
+                <div style={styles.dropdownList}>
+                  {currentUsername && (
+                    <div
+                      style={styles.dropdownItem}
+                      onMouseEnter={(e) =>
+                        (e.target.style.backgroundColor = styles.dropdownItemHover.backgroundColor)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.target.style.backgroundColor = styles.dropdownItem.backgroundColor)
+                      }
+                      onClick={() => handleSelectUser(currentUsername)}
+                    >
+                      Myself ({currentUsername})
+                    </div>
+                  )}
+                  {users.map((user) => (
+                    <div
+                      key={user.id}
+                      style={styles.dropdownItem}
+                      onMouseEnter={(e) =>
+                        (e.target.style.backgroundColor = styles.dropdownItemHover.backgroundColor)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.target.style.backgroundColor = styles.dropdownItem.backgroundColor)
+                      }
+                      onClick={() => handleSelectUser(user.username)}
+                    >
+                      {user.username}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Hidden Until (Optional)</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              style={styles.input}
+            />
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              style={styles.input}
+            />
+          </div>
+
+          <button
+            type="submit"
+            style={{
+              ...styles.button,
+              ...(loading ? styles.buttonDisabled : {}),
+            }}
+            disabled={loading}
+          >
+            {loading ? 'Uploading...' : 'Upload'}
+          </button>
+
+          {message && <p style={styles.success}>{message}</p>}
+          {error && <p style={styles.error}>{error}</p>}
+        </form>
+      </div>
+    </>
   );
 };
 

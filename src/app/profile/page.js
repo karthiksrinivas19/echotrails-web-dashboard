@@ -27,7 +27,9 @@ export default function UserProfile() {
 
         if (data.status === 'success') {
           setUserData(data.user_data);
-          fetchFollowingAndFollowers(data.user_data._id);
+          fetchFollowingAndFollowers(data.user_data.id);
+        } else {
+          console.error('❌ Failed to fetch user data:', data);
         }
       } catch (err) {
         console.error('❌ Error fetching user profile:', err);
@@ -39,25 +41,26 @@ export default function UserProfile() {
     const fetchFollowingAndFollowers = async (userId) => {
       try {
         setLoadingLists(true);
-        const [followingRes, followersRes] = await Promise.all([
-          fetch(`https://echo-trails-backend.vercel.app/users/following/${userId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }),
-          fetch(`https://echo-trails-backend.vercel.app/users/followers/${userId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }),
-        ]);
-
-        const [followingData, followersData] = await Promise.all([
-          followingRes.json(),
-          followersRes.json(),
-        ]);
-
-        setFollowing(followingData.following || []);
+    
+        const followingRes = await fetch(`https://echo-trails-backend.vercel.app/users/following`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+    
+        const followersRes = await fetch(`https://echo-trails-backend.vercel.app/users/followers/${userId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+    
+        const followingData = await followingRes.json();
+        const followersData = await followersRes.json();
+    
+        console.log('✅ Following Response:', followingData);
+        console.log('🔍 Following Users:', followingData.users);
+    
+        setFollowing(followingData || []);
         setFollowers(followersData.followers || []);
       } catch (err) {
         console.error('❌ Error fetching following/followers:', err);
@@ -65,20 +68,37 @@ export default function UserProfile() {
         setLoadingLists(false);
       }
     };
+    
 
     fetchUserData();
   }, [token]);
 
+  const removeFollower = async (username) => {
+    try {
+      const res = await fetch(`https://echo-trails-backend.vercel.app/followers/remove/${username}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(data.message);
+        setFollowers((prevFollowers) => prevFollowers.filter((user) => user.username !== username));
+      } else {
+        console.error('❌ Error removing follower:', data);
+      }
+    } catch (err) {
+      console.error('❌ Error removing follower:', err);
+    }
+  };
+
   if (loading) return (
     <>
       <Navbar />
-      <div style={{
-        minHeight: 'calc(100vh - 64px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#000000'
-      }}>
+      <div style={{ minHeight: 'calc(100vh - 64px)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000' }}>
         <div style={{ color: '#00ff9d' }}>Loading profile...</div>
       </div>
     </>
@@ -87,13 +107,7 @@ export default function UserProfile() {
   if (!userData) return (
     <>
       <Navbar />
-      <div style={{
-        minHeight: 'calc(100vh - 64px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#000000'
-      }}>
+      <div style={{ minHeight: 'calc(100vh - 64px)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000' }}>
         <div style={{ color: '#ff4d4d' }}>Failed to load profile.</div>
       </div>
     </>
@@ -196,9 +210,7 @@ export default function UserProfile() {
 
           <div style={styles.section}>
             <p style={styles.label}>Account Created</p>
-            <p style={styles.value}>
-              {new Date(userData.created_at).toLocaleString()}
-            </p>
+            <p style={styles.value}>{new Date(userData.created_at).toLocaleString()}</p>
           </div>
 
           <div style={styles.section}>
@@ -210,12 +222,11 @@ export default function UserProfile() {
               {loadingLists ? (
                 <div style={styles.loadingText}>Loading...</div>
               ) : following.length === 0 ? (
-                <div style={styles.emptyText}>Not following anyone yet</div>
+                <div style={styles.emptyText}>You are not following anyone yet.</div>
               ) : (
                 following.map((user) => (
-                  <div key={user._id} style={styles.listItem}>
+                  <div key={user.id} style={styles.listItem}>
                     <span style={styles.listItemText}>{user.username}</span>
-                    <span style={{ ...styles.listItemText, opacity: 0.7 }}>{user.email}</span>
                   </div>
                 ))
               )}
@@ -234,9 +245,15 @@ export default function UserProfile() {
                 <div style={styles.emptyText}>No followers yet</div>
               ) : (
                 followers.map((user) => (
-                  <div key={user._id} style={styles.listItem}>
+                  <div key={user._id || user.id} style={styles.listItem}>
                     <span style={styles.listItemText}>{user.username}</span>
                     <span style={{ ...styles.listItemText, opacity: 0.7 }}>{user.email}</span>
+                    <button 
+                      onClick={() => removeFollower(user.username)} 
+                      style={{ marginLeft: '10px', color: '#ff4d4d', background: 'none', border: 'none', cursor: 'pointer' }}
+                    >
+                      Remove
+                    </button>
                   </div>
                 ))
               )}

@@ -133,7 +133,7 @@ const AudioUploadForm = () => {
     formData.append('latitude', parseFloat(latitude));
     formData.append('longitude', parseFloat(longitude));
     formData.append('range', parseFloat(range));
-    formData.append('hidden_until', hiddenUntil.toLocaleString());
+    formData.append('hidden_until', hiddenUntil.toISOString());
     formData.append('recipient_usernames', recipientUsernames.join(','));
 
     try {

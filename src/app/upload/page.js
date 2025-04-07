@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import Navbar from '../../components/Navbar'; // Assuming Navbar is in components folder
+import { useRouter } from 'next/navigation';
+import { MapPin } from 'lucide-react';
+import Navbar from '../../components/Navbar';
 
 const AudioUploadForm = () => {
   const [file, setFile] = useState(null);
@@ -16,20 +18,30 @@ const AudioUploadForm = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+  const router = useRouter();
 
   useEffect(() => {
     const fetchCurrentUserAndFollowing = async () => {
       const token = localStorage.getItem('authToken');
-      const username = localStorage.getItem('username'); // Get username from localStorage
+      const username = localStorage.getItem('username');
       const headers = { Authorization: `Bearer ${token}` };
 
       try {
-        // Set current username from localStorage
         setCurrentUsername(username);
 
-        // Get following users
         const usersRes = await axios.get('https://echo-trails-backend.vercel.app/users/following', { headers });
         setUsers(usersRes.data);
+
+        // Check for selected location from map page
+        const storedLocation = localStorage.getItem('selectedLocation');
+        if (storedLocation) {
+          const { lat, lng } = JSON.parse(storedLocation);
+          setLatitude(lat.toString());
+          setLongitude(lng.toString());
+          localStorage.removeItem('selectedLocation');
+        }
       } catch (err) {
         console.error('Error fetching user data:', err);
         setError('Failed to fetch user info. Please check your login.');
@@ -39,10 +51,10 @@ const AudioUploadForm = () => {
     fetchCurrentUserAndFollowing();
   }, []);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!file || !range || !title || recipientUsernames.length === 0) {
-      setError('All fields are required.');
+    if (!file || !range || !title || recipientUsernames.length === 0 || !latitude || !longitude) {
+      setError('File, range, title, location coordinates, and at least one recipient are required.');
       return;
     }
 
@@ -50,78 +62,68 @@ const AudioUploadForm = () => {
     setMessage('');
     setLoading(true);
 
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      const { latitude, longitude } = pos.coords;
-      const hiddenUntil = date && time 
-        ? new Date(`${date}T${time}`) 
-        : new Date(Date.now() + 1000*60*60*24*365);  // Default to 1 year in future
+    const hiddenUntil = date && time 
+      ? new Date(`${date}T${time}`) 
+      : new Date(Date.now() + 1000*60*60*24*365);
 
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('title', title);
-      formData.append('latitude', latitude);
-      formData.append('longitude', longitude);
-      formData.append('range', parseFloat(range)); // Convert range to float
-      formData.append('hidden_until', hiddenUntil.toISOString());
-      formData.append('recipient_usernames', recipientUsernames.join(','));
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('title', title);
+    formData.append('latitude', parseFloat(latitude));
+    formData.append('longitude', parseFloat(longitude));
+    formData.append('range', parseFloat(range));
+    formData.append('hidden_until', hiddenUntil.toISOString());
+    formData.append('recipient_usernames', recipientUsernames.join(','));
 
-      formData.forEach((value, key) => {
-        console.log(`${key}:`, value);
-      });
-
-      console.log('File being uploaded:', file);
-
-      try {
-        const token = localStorage.getItem('authToken');
-        const response = await axios.post(
-          'https://echo-trails-backend.vercel.app/audio/upload',
-          formData,
-          {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-              'Authorization': `Bearer ${token}`
-            }
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await axios.post(
+        'https://echo-trails-backend.vercel.app/audio/upload',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${token}`
           }
-        );
-
-        if (response.status === 201 || response.status === 200) {
-          console.log('Upload successful:', response.data);
-          console.log('Upload response:', response.data);
-          setMessage('Audio file uploaded successfully!');
-
-          // Store lat, long, range, and audio ID in localStorage if recipientUsernames string includes currentUsername
-          if (recipientUsernames.includes(currentUsername)) {
-            const series = JSON.parse(localStorage.getItem('audioSeries')) || [];
-            series.push({
-              latitude,
-              longitude,
-              range: parseFloat(range),
-              hiddenUntil: hiddenUntil.toISOString(),
-              audioId: response.data.audioId, // Assuming response contains audioId
-              recipients: recipientUsernames, // Store recipients as a string
-            });
-            localStorage.setItem('audioSeries', JSON.stringify(series));
-          }
-
-          // Reset form
-          setFile(null);
-          setTitle('');
-          setRange('');
-          setDate('');
-          setTime('');
-          setRecipientUsernames([]);
         }
-      } catch (err) {
-        console.error('Upload error:', err);
-        setError(err.response?.data?.message || 'Error uploading file');
-      } finally {
-        setLoading(false);
+      );
+
+      if (response.status === 201 || response.status === 200) {
+        setMessage('Audio file uploaded successfully!');
+
+        if (recipientUsernames.includes(currentUsername)) {
+          const series = JSON.parse(localStorage.getItem('audioSeries')) || [];
+          series.push({
+            latitude: latitude ? parseFloat(latitude) : null,
+            longitude: longitude ? parseFloat(longitude) : null,
+            range: parseFloat(range),
+            hiddenUntil: hiddenUntil.toISOString(),
+            audioId: response.data.audioId,
+            recipients: recipientUsernames,
+          });
+          localStorage.setItem('audioSeries', JSON.stringify(series));
+        }
+
+        // Reset form
+        setFile(null);
+        setTitle('');
+        setRange('');
+        setDate('');
+        setTime('');
+        setRecipientUsernames([]);
+        setLatitude('');
+        setLongitude('');
       }
-    }, (err) => {
-      console.error("Geolocation error:", err);
-      setError("Location permission is required.");
+    } catch (err) {
+      console.error('Upload error:', err);
+      setError(err.response?.data?.message || 'Error uploading file');
+    } finally {
       setLoading(false);
-    });
+    }
+  };
+
+  const handleSelectLocation = () => {
+    router.push('/map');
   };
 
   const styles = {
@@ -161,10 +163,7 @@ const AudioUploadForm = () => {
       height: '60px',
       outline: 'none',
     },
-    dropdown: {
-      position: 'relative',
-    },
-    dropdownButton: {
+    locationButton: {
       padding: '18px 20px',
       fontSize: '18px',
       borderRadius: '16px',
@@ -172,29 +171,20 @@ const AudioUploadForm = () => {
       backgroundColor: 'rgba(255, 255, 255, 0.05)',
       color: '#ffffff',
       cursor: 'pointer',
-      textAlign: 'left',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '12px',
+      marginBottom: '20px',
+      textDecoration: 'none',
+      width: '100%',
     },
-    dropdownList: {
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      backgroundColor: '#000000',
-      border: '1px solid rgba(255, 255, 255, 0.1)',
-      borderRadius: '16px',
-      maxHeight: '200px',
-      overflowY: 'auto',
-      zIndex: 10,
+    locationInputs: {
+      display: 'flex',
+      gap: '12px',
     },
-    dropdownItem: {
-      padding: '12px 20px',
-      fontSize: '16px',
-      color: '#ffffff',
-      cursor: 'pointer',
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    },
-    dropdownItemHover: {
-      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    locationInput: {
+      flex: 1,
     },
     button: {
       padding: '20px',
@@ -240,6 +230,34 @@ const AudioUploadForm = () => {
       backgroundColor: 'rgba(76, 175, 80, 0.1)',
       border: '1px solid rgba(76, 175, 80, 0.2)',
     },
+    dropdown: {
+      position: 'relative',
+      width: '100%',
+    },
+    dropdownList: {
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      right: 0,
+      backgroundColor: '#000000',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      borderRadius: '8px',
+      marginTop: '4px',
+      maxHeight: '200px',
+      overflowY: 'auto',
+      zIndex: 1000,
+    },
+    dropdownItem: {
+      padding: '12px 16px',
+      cursor: 'pointer',
+      color: '#ffffff',
+      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+      transition: 'background-color 0.2s',
+    },
+    selectedCount: {
+      color: '#00ff9d',
+      marginLeft: '8px',
+    },
   };
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -249,36 +267,34 @@ const AudioUploadForm = () => {
   };
 
   const handleSelectUser = (username) => {
-    setRecipientUsernames((prev) =>
-      prev.includes(username)
-        ? prev.filter((user) => user !== username)
-        : [...prev, username]
-    );
+    if (recipientUsernames.includes(username)) {
+      setRecipientUsernames(recipientUsernames.filter(u => u !== username));
+    } else {
+      setRecipientUsernames([...recipientUsernames, username]);
+    }
   };
 
   return (
     <>
       <div style={styles.container}>
-        <h1 style={{ color: '#ffffff', textAlign: 'center', marginBottom: '20px' }}>Upload Audio</h1>
         <form onSubmit={handleSubmit}>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              style={styles.input}
-            />
-          </div>
-
           <div style={styles.inputGroup}>
             <label style={styles.label}>Audio File</label>
             <input
               type="file"
               accept="audio/*"
               onChange={(e) => setFile(e.target.files[0])}
-              required
+              style={styles.input}
+            />
+          </div>
+
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter audio title"
               style={styles.input}
             />
           </div>
@@ -289,52 +305,88 @@ const AudioUploadForm = () => {
               type="number"
               value={range}
               onChange={(e) => setRange(e.target.value)}
-              required
+              placeholder="Enter range in meters"
               style={styles.input}
             />
           </div>
 
           <div style={styles.inputGroup}>
-            <label style={styles.label}>Send To</label>
+            <label style={styles.label}>Location <span style={{ color: '#ff4d4d' }}>*</span></label>
+            <div style={styles.locationInputs}>
+              <input
+                type="number"
+                value={latitude}
+                onChange={(e) => setLatitude(e.target.value)}
+                placeholder="Latitude"
+                style={{ ...styles.input, ...styles.locationInput }}
+                step="any"
+                required
+              />
+              <input
+                type="number"
+                value={longitude}
+                onChange={(e) => setLongitude(e.target.value)}
+                placeholder="Longitude"
+                style={{ ...styles.input, ...styles.locationInput }}
+                step="any"
+                required
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleSelectLocation}
+              style={{
+                ...styles.locationButton,
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                color: '#00ff9d',
+                border: '1px solid #00ff9d',
+              }}
+            >
+              <MapPin size={20} />
+              Use Map to Select Location
+            </button>
+          </div>
+
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Recipients</label>
             <div style={styles.dropdown}>
               <button
                 type="button"
-                style={styles.dropdownButton}
                 onClick={toggleDropdown}
+                style={{
+                  ...styles.input,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                }}
               >
-                {recipientUsernames.length > 0
-                  ? recipientUsernames.join(', ')
-                  : 'Select recipients'}
+                <span>
+                  {recipientUsernames.length > 0
+                    ? `${recipientUsernames.length} user(s) selected`
+                    : 'Select recipients'}
+                </span>
+                <span style={styles.selectedCount}>
+                  {recipientUsernames.length > 0 ? `(${recipientUsernames.length})` : ''}
+                </span>
               </button>
               {dropdownOpen && (
                 <div style={styles.dropdownList}>
-                  {currentUsername && (
-                    <div
-                      style={styles.dropdownItem}
-                      onMouseEnter={(e) =>
-                        (e.target.style.backgroundColor = styles.dropdownItemHover.backgroundColor)
-                      }
-                      onMouseLeave={(e) =>
-                        (e.target.style.backgroundColor = styles.dropdownItem.backgroundColor)
-                      }
-                      onClick={() => handleSelectUser(currentUsername)}
-                    >
-                      Myself ({currentUsername})
-                    </div>
-                  )}
                   {users.map((user) => (
                     <div
-                      key={user.id}
-                      style={styles.dropdownItem}
-                      onMouseEnter={(e) =>
-                        (e.target.style.backgroundColor = styles.dropdownItemHover.backgroundColor)
-                      }
-                      onMouseLeave={(e) =>
-                        (e.target.style.backgroundColor = styles.dropdownItem.backgroundColor)
-                      }
+                      key={user._id}
                       onClick={() => handleSelectUser(user.username)}
+                      style={{
+                        ...styles.dropdownItem,
+                        backgroundColor: recipientUsernames.includes(user.username)
+                          ? 'rgba(0, 255, 157, 0.1)'
+                          : 'transparent',
+                      }}
                     >
                       {user.username}
+                      {recipientUsernames.includes(user.username) && (
+                        <span style={{ color: '#00ff9d', marginLeft: '8px' }}>✓</span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -358,19 +410,19 @@ const AudioUploadForm = () => {
             />
           </div>
 
+          {error && <div style={styles.error}>{error}</div>}
+          {message && <div style={styles.success}>{message}</div>}
+
           <button
             type="submit"
+            disabled={loading || !file || !title || !range || recipientUsernames.length === 0 || !latitude || !longitude}
             style={{
               ...styles.button,
-              ...(loading ? styles.buttonDisabled : {}),
+              ...((loading || !file || !title || !range || recipientUsernames.length === 0 || !latitude || !longitude) && styles.buttonDisabled)
             }}
-            disabled={loading}
           >
-            {loading ? 'Uploading...' : 'Upload'}
+            {loading ? 'Uploading...' : 'Upload Audio'}
           </button>
-
-          {message && <p style={styles.success}>{message}</p>}
-          {error && <p style={styles.error}>{error}</p>}
         </form>
       </div>
     </>

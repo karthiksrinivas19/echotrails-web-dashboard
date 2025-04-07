@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
-import { MapPin } from 'lucide-react';
+import { MapPin, Mic, StopCircle } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 
 const AudioUploadForm = () => {
@@ -20,42 +20,103 @@ const AudioUploadForm = () => {
   const [loading, setLoading] = useState(false);
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioChunks, setAudioChunks] = useState([]);
+  const mediaRecorderRef = useRef(null);
+  const timerRef = useRef(null);
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchCurrentUserAndFollowing = async () => {
-      const token = localStorage.getItem('authToken');
-      const username = localStorage.getItem('username');
-      const headers = { Authorization: `Bearer ${token}` };
+  const fetchCurrentUserAndFollowing = useCallback(async () => {
+    const token = localStorage.getItem('authToken');
+    const username = localStorage.getItem('username');
 
-      try {
-        setCurrentUsername(username);
+    if (!token || !username) {
+      setError('Please login to continue.');
+      router.push('/login');
+      return;
+    }
 
-        const usersRes = await axios.get('https://echo-trails-backend.vercel.app/users/following', { headers });
+    const headers = { Authorization: `Bearer ${token}` };
+
+    try {
+      setCurrentUsername(username);
+
+      const usersRes = await axios.get('https://echo-trails-backend.vercel.app/users/following', { headers });
+      if (usersRes.status === 200) {
         setUsers(usersRes.data);
-
-        // Check for selected location from map page
-        const storedLocation = localStorage.getItem('selectedLocation');
-        if (storedLocation) {
-          const { lat, lng } = JSON.parse(storedLocation);
-          setLatitude(lat.toString());
-          setLongitude(lng.toString());
-          localStorage.removeItem('selectedLocation');
-        }
-      } catch (err) {
-        console.error('Error fetching user data:', err);
-        setError('Failed to fetch user info. Please check your login.');
       }
-    };
 
+      // Check for selected location from map page
+      const storedLocation = localStorage.getItem('selectedLocation');
+      if (storedLocation) {
+        const { lat, lng } = JSON.parse(storedLocation);
+        setLatitude(lat.toString());
+        setLongitude(lng.toString());
+        localStorage.removeItem('selectedLocation');
+      } else {
+        // If no location is provided, try to get user's current location
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              setLatitude(position.coords.latitude.toString());
+              setLongitude(position.coords.longitude.toString());
+            },
+            (error) => {
+              console.error('Geolocation error:', error);
+              setError('Could not get your location. Please enter coordinates manually or use the map.');
+            }
+          );
+        } else {
+          setError('Geolocation is not supported by your browser. Please enter coordinates manually or use the map.');
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching user data:', err);
+      if (err.response?.status === 403) {
+        setError('Your session has expired. Please login again.');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('username');
+        router.push('/login');
+      } else {
+        setError('Failed to fetch user info. Please check your connection and try again.');
+      }
+    }
+  }, [router]);
+
+  useEffect(() => {
     fetchCurrentUserAndFollowing();
-  }, []);
+  }, [fetchCurrentUserAndFollowing]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!file || !range || !title || recipientUsernames.length === 0 || !latitude || !longitude) {
-      setError('File, range, title, location coordinates, and at least one recipient are required.');
+    if ((!file && !isRecording) || !range || !title || recipientUsernames.length === 0) {
+      setError('Either a recorded or uploaded audio file, range, title, and at least one recipient are required.');
       return;
+    }
+
+    if (isRecording) {
+      setError('Please stop the recording before submitting.');
+      return;
+    }
+
+    // If no location is provided, try to get current location
+    if (!latitude || !longitude) {
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject);
+          });
+          setLatitude(position.coords.latitude.toString());
+          setLongitude(position.coords.longitude.toString());
+        } catch (error) {
+          setError('Could not get your location. Please enter coordinates manually or use the map.');
+          return;
+        }
+      } else {
+        setError('Geolocation is not supported by your browser. Please enter coordinates manually or use the map.');
+        return;
+      }
     }
 
     setError('');
@@ -124,6 +185,54 @@ const AudioUploadForm = () => {
 
   const handleSelectLocation = () => {
     router.push('/map');
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      const chunks = [];
+      
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/wav' });
+        const audioFile = new File([audioBlob], 'recording.wav', { type: 'audio/wav' });
+        setFile(audioFile);
+        setAudioChunks([]);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Error starting recording:', err);
+      setError('Failed to start recording. Please check your microphone permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
+      clearInterval(timerRef.current);
+    }
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const styles = {
@@ -258,6 +367,41 @@ const AudioUploadForm = () => {
       color: '#00ff9d',
       marginLeft: '8px',
     },
+    recordingContainer: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px',
+      marginBottom: '20px',
+    },
+    recordingButton: {
+      padding: '18px 20px',
+      fontSize: '18px',
+      borderRadius: '16px',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      color: '#ffffff',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '12px',
+      marginBottom: '20px',
+      textDecoration: 'none',
+      width: '100%',
+    },
+    recordingTimer: {
+      textAlign: 'center',
+      color: '#00ff9d',
+      fontSize: '24px',
+      fontWeight: '600',
+      margin: '10px 0',
+    },
+    recordingStatus: {
+      textAlign: 'center',
+      color: isRecording ? '#00ff9d' : '#ff4d4d',
+      fontSize: '16px',
+      marginBottom: '10px',
+    },
   };
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -279,13 +423,40 @@ const AudioUploadForm = () => {
       <div style={styles.container}>
         <form onSubmit={handleSubmit}>
           <div style={styles.inputGroup}>
-            <label style={styles.label}>Audio File</label>
+            <label style={styles.label}>Audio File (Optional)</label>
             <input
               type="file"
               accept="audio/*"
               onChange={(e) => setFile(e.target.files[0])}
               style={styles.input}
             />
+          </div>
+
+          <div style={styles.recordingContainer}>
+            <label style={styles.label}>Record Audio (Optional)</label>
+            <button
+              type="button"
+              onClick={isRecording ? stopRecording : startRecording}
+              style={{
+                ...styles.recordingButton,
+                backgroundColor: isRecording ? 'rgba(255, 77, 77, 0.1)' : 'rgba(0, 255, 157, 0.1)',
+                border: isRecording ? '1px solid #ff4d4d' : '1px solid #00ff9d',
+                color: isRecording ? '#ff4d4d' : '#00ff9d',
+              }}
+            >
+              {isRecording ? <StopCircle size={20} /> : <Mic size={20} />}
+              {isRecording ? 'Stop Recording' : 'Start Recording'}
+            </button>
+            {isRecording && (
+              <div style={styles.recordingTimer}>
+                {formatTime(recordingTime)}
+              </div>
+            )}
+            {file && !isRecording && (
+              <div style={styles.recordingStatus}>
+                {file.name === 'recording.wav' ? 'Recording saved! Ready to upload.' : 'File selected! Ready to upload.'}
+              </div>
+            )}
           </div>
 
           <div style={styles.inputGroup}>
@@ -374,7 +545,7 @@ const AudioUploadForm = () => {
                 <div style={styles.dropdownList}>
                   {users.map((user) => (
                     <div
-                      key={user._id}
+                      key={`user-${user._id}-${user.username}`}
                       onClick={() => handleSelectUser(user.username)}
                       style={{
                         ...styles.dropdownItem,
@@ -415,10 +586,10 @@ const AudioUploadForm = () => {
 
           <button
             type="submit"
-            disabled={loading || !file || !title || !range || recipientUsernames.length === 0 || !latitude || !longitude}
+            disabled={loading || (!file && !isRecording) || !title || !range || recipientUsernames.length === 0 || !latitude || !longitude}
             style={{
               ...styles.button,
-              ...((loading || !file || !title || !range || recipientUsernames.length === 0 || !latitude || !longitude) && styles.buttonDisabled)
+              ...((loading || (!file && !isRecording) || !title || !range || recipientUsernames.length === 0 || !latitude || !longitude) && styles.buttonDisabled)
             }}
           >
             {loading ? 'Uploading...' : 'Upload Audio'}

@@ -166,9 +166,6 @@ export default function Navbar() {
                     </button>
                     {showDropdown && (
                         <div style={styles.dropdownContent}>
-                            <Link href="/follow" style={styles.dropdownItem}>
-                                Follow
-                            </Link>
                             <Link href="/followaccept" style={styles.dropdownItem}>
                                 Follow Accept
                             </Link>

@@ -97,7 +97,6 @@ export default function AudioMap() {
           ...file,
           isNearby,
           hidden_until: new Date(file.hidden_until).toLocaleString(),
-          created_at: new Date(file.created_at).toLocaleString(),
         };
       });
 

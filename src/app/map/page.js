@@ -91,7 +91,12 @@ export default function AudioMap() {
           ? calculateDistance(userCoords.latitude, userCoords.longitude, lat, lng)
           : Infinity;
         const isNearby = distance <= file.range;
-        return { ...file, isNearby };
+        return {
+          ...file,
+          isNearby,
+          hidden_until: new Date(file.hidden_until).toLocaleString(),
+          created_at: new Date(file.created_at).toLocaleString(),
+        };
       });
 
       setAudioFiles(enrichedFiles);

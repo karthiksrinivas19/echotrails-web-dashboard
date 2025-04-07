@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from "react";
@@ -13,6 +12,7 @@ const MapContainer = dynamic(() => import("react-leaflet").then(mod => mod.MapCo
 const TileLayer = dynamic(() => import("react-leaflet").then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import("react-leaflet").then(mod => mod.Marker), { ssr: false });
 const Popup = dynamic(() => import("react-leaflet").then(mod => mod.Popup), { ssr: false });
+const useMapEvents = dynamic(() => import("react-leaflet").then(mod => mod.useMapEvents), { ssr: false });
 
 const defaultPosition = [12.9716, 77.5946];
 
@@ -22,6 +22,7 @@ export default function AudioMap() {
   const [markerIcon, setMarkerIcon] = useState({ default: null, nearby: null });
   const [showUpload, setShowUpload] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState(null); // 📍 NEW
 
   useEffect(() => {
     setMounted(true);
@@ -65,7 +66,7 @@ export default function AudioMap() {
   }, []);
 
   function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371000; // meters
+    const R = 6371000;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a =
@@ -203,6 +204,17 @@ export default function AudioMap() {
     }
   };
 
+  // 🌍 Map click handler
+  const MapClickHandler = () => {
+    useMapEvents({
+      click(e) {
+        const { lat, lng } = e.latlng;
+        setSelectedLocation({ latitude: lat, longitude: lng });
+      },
+    });
+    return null;
+  };
+
   return (
     <div style={styles.container}>
       <style jsx global>{`
@@ -219,7 +231,7 @@ export default function AudioMap() {
 
         {showUpload && (
           <div style={styles.uploadContainer}>
-            <UploadAudioPage />
+            <UploadAudioPage selectedLocation={selectedLocation} />
           </div>
         )}
 
@@ -230,10 +242,18 @@ export default function AudioMap() {
               zoom={13}
               style={{ height: '100%', width: '100%' }}
             >
+              <MapClickHandler />
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; OpenStreetMap contributors'
               />
+
+              {selectedLocation && (
+                <Marker position={[selectedLocation.latitude, selectedLocation.longitude]} icon={markerIcon.default}>
+                  <Popup>📍 Selected Location for Upload</Popup>
+                </Marker>
+              )}
+
               {markerIcon.default &&
                 validAudioFiles.map((file, idx) => {
                   const isTimeUnlocked = new Date(file.hidden_until) <= new Date();

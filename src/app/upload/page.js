@@ -72,7 +72,7 @@ const AudioUploadForm = () => {
     formData.append('latitude', parseFloat(latitude));
     formData.append('longitude', parseFloat(longitude));
     formData.append('range', parseFloat(range));
-    formData.append('hidden_until', hiddenUntil.toISOString());
+    formData.append('hidden_until', hiddenUntil.toLocaleString());
     formData.append('recipient_usernames', recipientUsernames.join(','));
 
     try {
@@ -97,7 +97,7 @@ const AudioUploadForm = () => {
             latitude: latitude ? parseFloat(latitude) : null,
             longitude: longitude ? parseFloat(longitude) : null,
             range: parseFloat(range),
-            hiddenUntil: hiddenUntil.toISOString(),
+            hiddenUntil: hiddenUntil.toLocaleString(),
             audioId: response.data.audioId,
             recipients: recipientUsernames,
           });
